@@ -21,13 +21,22 @@ android {
 
         externalNativeBuild {
             cmake {
-                // Optimization flag for maximum DSP audio performance
-                cppFlags += "-std=c++17 -O3"
+                // Optimization flag for maximum DSP audio performance and Android OS flag for STK
+                cppFlags += "-std=c++17 -O3 -D__OS_ANDROID__"
+
+                // POPRAVKA ZA OBOE: Govori kompajleru da koristi shared STL
+                arguments += "-DANDROID_STL=c++_shared"
 
                 // Forces 16 KB memory alignment for the C++ library
                 arguments += "-DCMAKE_SHARED_LINKER_FLAGS=-Wl,-z,max-page-size=16384"
             }
         }
+    }
+
+    // Enable Prefab for Oboe
+    buildFeatures {
+        prefab = true
+        compose = true
     }
 
     buildTypes {
@@ -46,16 +55,12 @@ android {
     kotlinOptions {
         jvmTarget = "1.8"
     }
-    buildFeatures {
-        compose = true
-    }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.8"
     }
     externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
-            // Ensure this version matches what is installed in your SDK Manager
             version = "3.22.1"
         }
     }
@@ -75,4 +80,7 @@ dependencies {
     // Dependencies required for Multi-Screen UI and Extended Icons
     implementation("androidx.navigation:navigation-compose:2.7.7")
     implementation("androidx.compose.material:material-icons-extended")
+
+    // Oboe Audio Library
+    implementation("com.google.oboe:oboe:1.8.0")
 }

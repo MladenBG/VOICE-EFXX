@@ -258,89 +258,38 @@ fun FxRackScreen() {
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
-        Text("DSP EFFECTS RACK", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = AccentCyan, letterSpacing = 1.sp)
+        Text("PRO DSP EFFECTS", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = AccentCyan, letterSpacing = 1.sp)
         Spacer(modifier = Modifier.height(16.dp))
 
-        FiveBandEqModule()
-        ReverbModule()
-        DelayModule()
-        MorphModule()
+        // SoundTouch Pitch
+        var pitchOn by remember { mutableStateOf(false) }
+        var semitones by remember { mutableFloatStateOf(0f) }
+        fun upPitch() = VoiceEngine.setPitchParams(pitchOn, semitones)
+        StudioModuleCard("SoundTouch Pitch", pitchOn, onToggle = { pitchOn = it; upPitch() }) {
+            StudioSliderRow("Semitones", semitones, -12f, 12f) { semitones = it; upPitch() }
+        }
+
+        // STK Chorus
+        var chorusOn by remember { mutableStateOf(false) }
+        var depth by remember { mutableFloatStateOf(0.2f) }
+        var freq by remember { mutableFloatStateOf(1.5f) }
+        fun upChorus() = VoiceEngine.setChorusParams(chorusOn, depth, freq)
+        StudioModuleCard("STK Chorus", chorusOn, onToggle = { chorusOn = it; upChorus() }) {
+            StudioSliderRow("Mod Depth", depth, 0.0f, 1.0f) { depth = it; upChorus() }
+            StudioSliderRow("LFO Freq (Hz)", freq, 0.1f, 5.0f) { freq = it; upChorus() }
+        }
+
+        // STK Delay
+        var delayOn by remember { mutableStateOf(false) }
+        var time by remember { mutableFloatStateOf(300f) }
+        var feedback by remember { mutableFloatStateOf(0.5f) }
+        fun upDelay() = VoiceEngine.setDelayParams(delayOn, time, feedback)
+        StudioModuleCard("STK Delay", delayOn, onToggle = { delayOn = it; upDelay() }) {
+            StudioSliderRow("Time (ms)", time, 10f, 900f) { time = it; upDelay() }
+            StudioSliderRow("Feedback", feedback, 0.0f, 0.9f) { feedback = it; upDelay() }
+        }
+
         Spacer(modifier = Modifier.height(32.dp))
-    }
-}
-
-@Composable
-fun FiveBandEqModule() {
-    var enabled by remember { mutableStateOf(false) }
-
-    // Gain state for 5 bands
-    var lowGain by remember { mutableFloatStateOf(0f) }
-    var lowMidGain by remember { mutableFloatStateOf(0f) }
-    var midGain by remember { mutableFloatStateOf(0f) }
-    var highMidGain by remember { mutableFloatStateOf(0f) }
-    var highGain by remember { mutableFloatStateOf(0f) }
-
-    fun updateEq() {
-        VoiceEngine.setEqEnabled(enabled)
-        VoiceEngine.setEqBand(0, lowGain, 80f, 0.707f)      // Low Shelf
-        VoiceEngine.setEqBand(1, lowMidGain, 300f, 1.0f)    // Low Mid Peak
-        VoiceEngine.setEqBand(2, midGain, 1000f, 1.0f)      // Mid Peak
-        VoiceEngine.setEqBand(3, highMidGain, 4000f, 1.0f)  // High Mid Peak
-        VoiceEngine.setEqBand(4, highGain, 10000f, 0.707f)  // High Shelf
-    }
-
-    StudioModuleCard("5-Band Parametric EQ", enabled, onToggle = { enabled = it; updateEq() }) {
-        StudioSliderRow("Low (80Hz)", lowGain, -15f, 15f) { lowGain = it; updateEq() }
-        StudioSliderRow("L-Mid (300Hz)", lowMidGain, -15f, 15f) { lowMidGain = it; updateEq() }
-        StudioSliderRow("Mid (1kHz)", midGain, -15f, 15f) { midGain = it; updateEq() }
-        StudioSliderRow("H-Mid (4kHz)", highMidGain, -15f, 15f) { highMidGain = it; updateEq() }
-        StudioSliderRow("High (10kHz)", highGain, -15f, 15f) { highGain = it; updateEq() }
-    }
-}
-
-@Composable
-fun ReverbModule() {
-    var enabled by remember { mutableStateOf(false) }
-    var size by remember { mutableFloatStateOf(0.7f) }
-    var damping by remember { mutableFloatStateOf(0.5f) }
-    var mix by remember { mutableFloatStateOf(0.3f) }
-
-    fun update() = VoiceEngine.setReverbParams(enabled, size, damping, mix)
-
-    StudioModuleCard("Studio Reverb", enabled, onToggle = { enabled = it; update() }) {
-        StudioSliderRow("Room Size", size, 0.1f, 1.0f) { size = it; update() }
-        StudioSliderRow("Damping", damping, 0.0f, 1.0f) { damping = it; update() }
-        StudioSliderRow("Wet Mix", mix, 0.0f, 1.0f) { mix = it; update() }
-    }
-}
-
-@Composable
-fun DelayModule() {
-    var enabled by remember { mutableStateOf(false) }
-    var timeL by remember { mutableFloatStateOf(0.3f) }
-    var timeR by remember { mutableFloatStateOf(0.4f) }
-    var feedback by remember { mutableFloatStateOf(0.5f) }
-    var mix by remember { mutableFloatStateOf(0.4f) }
-
-    fun update() = VoiceEngine.setDelayParams(enabled, timeL, timeR, feedback, mix)
-
-    StudioModuleCard("Stereo Delay", enabled, onToggle = { enabled = it; update() }) {
-        StudioSliderRow("Time L (s)", timeL, 0.05f, 1.5f) { timeL = it; update() }
-        StudioSliderRow("Time R (s)", timeR, 0.05f, 1.5f) { timeR = it; update() }
-        StudioSliderRow("Feedback", feedback, 0.0f, 0.9f) { feedback = it; update() }
-        StudioSliderRow("Mix", mix, 0.0f, 1.0f) { mix = it; update() }
-    }
-}
-
-@Composable
-fun MorphModule() {
-    var enabled by remember { mutableStateOf(false) }
-    var shift by remember { mutableFloatStateOf(1.0f) }
-
-    fun update() = VoiceEngine.setMorphParams(enabled, shift)
-
-    StudioModuleCard("Pitch / Morph", enabled, onToggle = { enabled = it; update() }) {
-        StudioSliderRow("Pitch Ratio", shift, 0.5f, 2.0f) { shift = it; update() }
     }
 }
 

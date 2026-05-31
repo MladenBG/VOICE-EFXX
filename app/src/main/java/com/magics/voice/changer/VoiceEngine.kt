@@ -9,14 +9,12 @@ object VoiceEngine {
     external fun startEngine(): Boolean
     external fun stopEngine()
 
-    // EQ Controls
-    external fun setEqBand(bandIndex: Int, gainDb: Float, freqHz: Float, q: Float)
-    external fun setEqEnabled(enabled: Boolean)
+    // SoundTouch Parameters
+    external fun setPitchParams(enabled: Boolean, semitones: Float)
 
-    // Effect Controls
-    external fun setMorphParams(enabled: Boolean, pitchShift: Float)
-    external fun setDelayParams(enabled: Boolean, timeL: Float, timeR: Float, feedback: Float, mix: Float)
-    external fun setReverbParams(enabled: Boolean, size: Float, damping: Float, mix: Float)
+    // STK Parameters
+    external fun setChorusParams(enabled: Boolean, depth: Float, freq: Float)
+    external fun setDelayParams(enabled: Boolean, delayMs: Float, feedback: Float)
 
     // UI Visualization
     external fun getAmplitude(): Float
