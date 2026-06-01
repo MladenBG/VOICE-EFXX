@@ -4,19 +4,19 @@ project("voicechanger")
 # Find Oboe downloaded via Gradle Prefab
 find_package(oboe REQUIRED CONFIG)
 
-# Tell the compiler where to look for the headers for STK and SoundTouch
+# Include directories for headers
 include_directories(stk)
 include_directories(soundtouch)
 
-# Automatically grab all .cpp files from STK and SoundTouch folders
+# Automatically grab all relevant .cpp files
 file(GLOB STK_SOURCES "stk/*.cpp")
 
-# OVO JE PROŠIRENO: Izbacuje mrežne fajlove, Mutex/Thread, i STK mikrofonske/zvučne drajvere (RtWvIn, RtAudio...)
+# Exclude networking, threads, and redundant STK audio device drivers to prevent NDK build errors
 list(FILTER STK_SOURCES EXCLUDE REGEX ".*(InetWvOut|InetWvIn|UdpSocket|TcpClient|TcpServer|Socket|Thread|Mutex|RtAudio|RtMidi|RtWvIn|RtWvOut)\\.cpp$")
 
 file(GLOB SOUNDTOUCH_SOURCES "soundtouch/*.cpp")
 
-# Build the main shared library including all external source files
+# Build the main shared library
 add_library(
         voicechanger
         SHARED
@@ -28,7 +28,7 @@ add_library(
 
 find_library(log-lib log)
 
-# Link everything together (Oboe, Android Log, and our code)
+# Link the libraries
 target_link_libraries(
         voicechanger
         oboe::oboe

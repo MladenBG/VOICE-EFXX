@@ -1,47 +1,70 @@
 #include <jni.h>
 #include "AudioEngine.h"
 
-// Global instance of the audio engine
 AudioEngine* audioEngine = nullptr;
 
-extern "C" JNIEXPORT jboolean JNICALL Java_com_magics_voice_changer_VoiceEngine_startEngine(JNIEnv *env, jobject thiz) {
-    if (!audioEngine) audioEngine = new AudioEngine();
-    return audioEngine->start() ? JNI_TRUE : JNI_FALSE;
+extern "C" JNIEXPORT jboolean JNICALL Java_com_magics_voice_changer_VoiceEngine_startEngine(JNIEnv *e, jobject t) {
+    if (!audioEngine) audioEngine = new AudioEngine(); return audioEngine->start() ? JNI_TRUE : JNI_FALSE;
+}
+extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_stopEngine(JNIEnv *e, jobject t) {
+    if (audioEngine) { audioEngine->stop(); delete audioEngine; audioEngine = nullptr; }
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_stopEngine(JNIEnv *env, jobject thiz) {
-    if (audioEngine) {
-        audioEngine->stop();
-        delete audioEngine;
-        audioEngine = nullptr;
-    }
+// Tone FX JNI
+extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_setCompParams(JNIEnv *e, jobject t, jboolean en, jfloat thr, jfloat rat, jfloat att, jfloat rel) {
+    if (audioEngine) audioEngine->setCompParams(en, thr, rat, att, rel);
+}
+extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_setAmpParams(JNIEnv *e, jobject t, jboolean en, jfloat d, jfloat tn, jfloat o) {
+    if (audioEngine) audioEngine->setAmpParams(en, d, tn, o);
+}
+extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_setEqBand(JNIEnv *e, jobject t, jint b, jfloat g, jfloat f, jfloat q) {
+    if (audioEngine) audioEngine->setEqBand(b, g, f, q);
+}
+extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_setEqEnabled(JNIEnv *e, jobject t, jboolean en) {
+    if (audioEngine) audioEngine->setEqEnabled(en);
+}
+extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_setPitchParams(JNIEnv *e, jobject t, jboolean en, jfloat s) {
+    if (audioEngine) audioEngine->setPitchParams(en, s);
+}
+extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_setOctaveParams(JNIEnv *e, jobject t, jboolean en, jfloat m, jfloat s) {
+    if (audioEngine) audioEngine->setOctaveParams(en, m, s);
+}
+extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_setTuneParams(JNIEnv *e, jobject t, jboolean en, jfloat c, jfloat s) {
+    if (audioEngine) audioEngine->setTuneParams(en, c, s);
+}
+extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_setVocoderParams(JNIEnv *e, jobject t, jboolean en, jfloat c, jfloat m) {
+    if (audioEngine) audioEngine->setVocoderParams(en, c, m);
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_setPitchParams(JNIEnv *env, jobject thiz, jboolean enabled, jfloat semitones) {
-    if (audioEngine) audioEngine->setPitchParams(enabled, semitones);
+// Mod FX JNI
+extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_setChorusParams(JNIEnv *e, jobject t, jboolean en, jfloat dms, jfloat d, jfloat r, jfloat m) {
+    if (audioEngine) audioEngine->setChorusParams(en, dms, d, r, m);
+}
+extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_setFlangerParams(JNIEnv *e, jobject t, jboolean en, jfloat dms, jfloat d, jfloat r, jfloat fb, jfloat m) {
+    if (audioEngine) audioEngine->setFlangerParams(en, dms, d, r, fb, m);
+}
+extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_setPhaserParams(JNIEnv *e, jobject t, jboolean en, jfloat r, jfloat d, jfloat fb) {
+    if (audioEngine) audioEngine->setPhaserParams(en, r, d, fb);
+}
+extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_setAutoFilterParams(JNIEnv *e, jobject t, jboolean en, jfloat c, jfloat res, jfloat lr, jfloat ld) {
+    if (audioEngine) audioEngine->setAutoFilterParams(en, c, res, lr, ld);
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_setChorusParams(JNIEnv *env, jobject thiz, jboolean enabled, jfloat depth, jfloat freq) {
-    if (audioEngine) audioEngine->setChorusParams(enabled, depth, freq);
+// Time FX JNI
+extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_setDelayParams(JNIEnv *e, jobject t, jboolean en, jfloat tl, jfloat tr, jfloat f, jfloat m) {
+    if (audioEngine) audioEngine->setDelayParams(en, tl, tr, f, m);
+}
+extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_setReverbParams(JNIEnv *e, jobject t, jboolean en, jfloat s, jfloat d, jfloat m) {
+    if (audioEngine) audioEngine->setReverbParams(en, s, d, m);
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_setDelayParams(JNIEnv *env, jobject thiz, jboolean enabled, jfloat delayMs, jfloat feedback) {
-    if (audioEngine) audioEngine->setDelayParams(enabled, delayMs, feedback);
-}
-
-extern "C" JNIEXPORT jfloat JNICALL Java_com_magics_voice_changer_VoiceEngine_getAmplitude(JNIEnv *env, jobject thiz) {
+// System JNI
+extern "C" JNIEXPORT jfloat JNICALL Java_com_magics_voice_changer_VoiceEngine_getAmplitude(JNIEnv *e, jobject t) {
     return audioEngine ? audioEngine->getCurrentAmplitude() : 0.0f;
 }
-
-extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_startRecording(JNIEnv *env, jobject thiz, jstring path) {
-    if (!audioEngine) return;
-    const char *filePath = env->GetStringUTFChars(path, 0);
-    audioEngine->startRecording(filePath);
-    env->ReleaseStringUTFChars(path, filePath);
+extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_startRecording(JNIEnv *e, jobject t, jstring p) {
+    if (!audioEngine) return; const char *f = e->GetStringUTFChars(p, 0); audioEngine->startRecording(f); e->ReleaseStringUTFChars(p, f);
 }
-
-extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_stopRecording(JNIEnv *env, jobject thiz) {
-    if (audioEngine) {
-        audioEngine->stopRecording();
-    }
+extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_stopRecording(JNIEnv *e, jobject t) {
+    if (audioEngine) audioEngine->stopRecording();
 }

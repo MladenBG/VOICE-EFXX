@@ -21,19 +21,18 @@ android {
 
         externalNativeBuild {
             cmake {
-                // Optimization flag for maximum DSP audio performance and Android OS flag for STK
+                // Optimization flags for DSP and Android OS definition for STK
                 cppFlags += "-std=c++17 -O3 -D__OS_ANDROID__"
 
-                // POPRAVKA ZA OBOE: Govori kompajleru da koristi shared STL
+                // CRITICAL FIX: Ensure Oboe uses the shared STL library
                 arguments += "-DANDROID_STL=c++_shared"
 
-                // Forces 16 KB memory alignment for the C++ library
+                // Forces 16 KB memory alignment for the C++ library (Android 15+ requirement)
                 arguments += "-DCMAKE_SHARED_LINKER_FLAGS=-Wl,-z,max-page-size=16384"
             }
         }
     }
 
-    // Enable Prefab for Oboe
     buildFeatures {
         prefab = true
         compose = true
@@ -77,10 +76,10 @@ dependencies {
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.material3:material3")
 
-    // Dependencies required for Multi-Screen UI and Extended Icons
+    // UI Navigation and Icons
     implementation("androidx.navigation:navigation-compose:2.7.7")
     implementation("androidx.compose.material:material-icons-extended")
 
-    // Oboe Audio Library
-    implementation("com.google.oboe:oboe:1.8.0")
+    // OVO MORA DA BUDE 1.9.3 DA BI 16KB ALIGNMENT RADIO!!! OVO REŠAVA PROBLEM!
+    implementation("com.google.oboe:oboe:1.9.3")
 }
