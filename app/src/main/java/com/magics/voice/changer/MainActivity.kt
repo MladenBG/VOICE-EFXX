@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -21,6 +22,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -37,6 +39,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.io.File
 import kotlin.math.cos
 import kotlin.math.sin
@@ -50,7 +53,8 @@ val AccentRed = Color(0xFFFF1744)
 class MainActivity : ComponentActivity() {
 
     private var permissionGranted by mutableStateOf(false)
-    private lateinit var wavFilePath: String
+    private lateinit var rawFilePath: String
+    private lateinit var masterFilePath: String
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -61,7 +65,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        wavFilePath = "${cacheDir.absolutePath}/magics_studio_record.wav"
+        rawFilePath = "${cacheDir.absolutePath}/magics_studio_raw.wav"
+        masterFilePath = "${cacheDir.absolutePath}/magics_studio_master.wav"
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             permissionGranted = true
@@ -77,7 +82,7 @@ class MainActivity : ComponentActivity() {
                         Text("Microphone permission REQUIRED.", color = AccentRed)
                     }
                 } else {
-                    MainAppNavHost(wavFilePath)
+                    MainAppNavHost(rawFilePath, masterFilePath)
                 }
             }
         }
@@ -88,38 +93,42 @@ class MainActivity : ComponentActivity() {
         VoiceEngine.stopEngine()
     }
 
-    fun shareWavFile() {
-        val file = File(wavFilePath)
-        if (!file.exists()) return
+    fun shareFile(path: String, title: String) {
+        val file = File(path)
+        if (!file.exists()) {
+            Toast.makeText(this, "Fajl ne postoji! Prvo snimi i procesiraj.", Toast.LENGTH_SHORT).show()
+            return
+        }
         val uri = FileProvider.getUriForFile(this, "${packageName}.fileprovider", file)
         val shareIntent = Intent(Intent.ACTION_SEND).apply {
             type = "audio/wav"
             putExtra(Intent.EXTRA_STREAM, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        startActivity(Intent.createChooser(shareIntent, "Share Mastered Audio"))
+        startActivity(Intent.createChooser(shareIntent, title))
     }
 }
 
 @Composable
-fun MainAppNavHost(wavFilePath: String) {
+fun MainAppNavHost(rawFilePath: String, masterFilePath: String) {
     val navController = rememberNavController()
     Scaffold(bottomBar = { StudioBottomNavigation(navController) }) { innerPadding ->
         NavHost(navController = navController, startDestination = "studio", modifier = Modifier.padding(innerPadding)) {
-            composable("studio") { StudioScreen(wavFilePath) }
+            composable("studio") { StudioScreen(rawFilePath) }
+            composable("editor") { EditorScreen(rawFilePath, masterFilePath) }
             composable("time_fx") { TimeFxScreen() }
             composable("mod_fx") { ModFxScreen() }
             composable("tone_fx") { ToneFxScreen() }
-            composable("export") { ExportScreen(wavFilePath) }
+            composable("export") { ExportScreen(rawFilePath, masterFilePath) }
         }
     }
 }
 
 @Composable
 fun StudioBottomNavigation(navController: NavController) {
-    val items = listOf("studio", "time_fx", "mod_fx", "tone_fx", "export")
-    val icons = listOf(Icons.Default.Mic, Icons.Default.AccessTime, Icons.Default.Waves, Icons.Default.GraphicEq, Icons.Default.Share)
-    val labels = listOf("Studio", "Time FX", "Mod FX", "Tone FX", "Export")
+    val items = listOf("studio", "editor", "time_fx", "mod_fx", "tone_fx", "export")
+    val icons = listOf(Icons.Default.Mic, Icons.Default.PlayArrow, Icons.Default.AccessTime, Icons.Default.Waves, Icons.Default.GraphicEq, Icons.Default.Share)
+    val labels = listOf("Rec", "Edit", "Time", "Mod", "Tone", "Share")
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -127,8 +136,8 @@ fun StudioBottomNavigation(navController: NavController) {
     NavigationBar(containerColor = SurfaceDark) {
         items.forEachIndexed { index, screen ->
             NavigationBarItem(
-                icon = { Icon(icons[index], contentDescription = labels[index]) },
-                label = { Text(labels[index], fontSize = 10.sp) },
+                icon = { Icon(icons[index], contentDescription = labels[index], modifier = Modifier.size(22.dp)) },
+                label = { Text(labels[index], fontSize = 9.sp, maxLines = 1) },
                 selected = currentRoute == screen,
                 onClick = {
                     navController.navigate(screen) {
@@ -144,25 +153,47 @@ fun StudioBottomNavigation(navController: NavController) {
 }
 
 @Composable
-fun StudioScreen(wavFilePath: String) {
+fun StudioScreen(rawFilePath: String) {
     var isRecording by remember { mutableStateOf(false) }
+    var fileExists by remember { mutableStateOf(File(rawFilePath).exists()) }
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     Column(modifier = Modifier.fillMaxSize().background(StudioBackground).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Text("RECORDING CONSOLE", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White, letterSpacing = 2.sp)
+        Text("RECORD RAW VOCAL", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White, letterSpacing = 2.sp)
         Spacer(modifier = Modifier.height(40.dp))
         WaveformVisualizer(isRecording)
         Spacer(modifier = Modifier.height(60.dp))
 
-        Button(
-            onClick = {
-                if (isRecording) { VoiceEngine.stopRecording(); isRecording = false }
-                else { VoiceEngine.startRecording(wavFilePath); isRecording = true }
-            },
-            modifier = Modifier.size(120.dp), shape = RoundedCornerShape(60.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = if (isRecording) AccentRed else SurfaceDark, contentColor = Color.White),
-            elevation = ButtonDefaults.buttonElevation(defaultElevation = 8.dp)
-        ) {
-            Text(if (isRecording) "STOP" else "REC", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Button(
+                onClick = {
+                    if (isRecording) {
+                        VoiceEngine.stopRecording()
+                        isRecording = false
+                        fileExists = true
+                    } else {
+                        VoiceEngine.startRecording(rawFilePath)
+                        isRecording = true
+                    }
+                },
+                modifier = Modifier.size(120.dp), shape = RoundedCornerShape(60.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = if (isRecording) AccentRed else SurfaceDark, contentColor = Color.White),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 8.dp)
+            ) {
+                Text(if (isRecording) "STOP" else "REC", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            }
+
+            // Delete ikonica se prikazuje samo kada fajl postoji i ne snimamo
+            if (fileExists && !isRecording) {
+                Spacer(modifier = Modifier.width(16.dp))
+                IconButton(onClick = {
+                    File(rawFilePath).delete()
+                    fileExists = false
+                    Toast.makeText(context, "Snimak obrisan!", Toast.LENGTH_SHORT).show()
+                }) {
+                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = AccentRed, modifier = Modifier.size(36.dp))
+                }
+            }
         }
     }
 }
@@ -186,46 +217,112 @@ fun WaveformVisualizer(isRecording: Boolean) {
 }
 
 @Composable
+fun EditorScreen(rawFilePath: String, masterFilePath: String) {
+    var isPlaying by remember { mutableStateOf(false) }
+    var progress by remember { mutableFloatStateOf(0f) }
+    var isBouncing by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    LaunchedEffect(isPlaying) {
+        while(isPlaying) {
+            progress = VoiceEngine.getPlaybackPosition()
+            if (progress >= 0.99f) { isPlaying = false; VoiceEngine.stopPlayback() }
+            delay(50)
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize().background(StudioBackground).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        Text("FX PREVIEW & BOUNCE", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        Spacer(modifier = Modifier.height(40.dp))
+
+        LinearProgressIndicator(progress = progress, modifier = Modifier.fillMaxWidth().height(8.dp), color = AccentCyan, trackColor = SurfaceDark)
+        Spacer(modifier = Modifier.height(30.dp))
+
+        Button(
+            onClick = {
+                if(isPlaying) { VoiceEngine.stopPlayback(); isPlaying=false }
+                else { VoiceEngine.startPlayback(rawFilePath); isPlaying=true }
+            },
+            modifier = Modifier.size(100.dp), shape = RoundedCornerShape(50.dp), colors = ButtonDefaults.buttonColors(containerColor = SurfaceDark)
+        ) {
+            Text(if(isPlaying) "STOP" else "PLAY")
+        }
+
+        Spacer(modifier = Modifier.height(80.dp))
+
+        Button(
+            onClick = {
+                scope.launch {
+                    isBouncing = true
+                    if(isPlaying) { VoiceEngine.stopPlayback(); isPlaying=false }
+                    delay(200)
+                    val success = VoiceEngine.processWavFile(rawFilePath, masterFilePath)
+                    isBouncing = false
+                    Toast.makeText(context, if(success) "WAV Uspešno Masterizovan!" else "Greška u renderovanju!", Toast.LENGTH_LONG).show()
+                }
+            },
+            modifier = Modifier.fillMaxWidth().height(60.dp), shape = RoundedCornerShape(8.dp), colors = ButtonDefaults.buttonColors(containerColor = AccentRed)
+        ) {
+            Text(if(isBouncing) "BOUNCING..." else "PROCESS & RENDER FX", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
 fun TimeFxScreen() {
     Column(modifier = Modifier.fillMaxSize().background(StudioBackground).verticalScroll(rememberScrollState()).padding(16.dp)) {
         Text("TIME & SPACE", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = AccentCyan)
         Spacer(modifier = Modifier.height(16.dp))
 
-        // DELAY WITH TAP (Sa rotirajucim knobovima)
         var delayOn by remember { mutableStateOf(false) }
+        var syncBpm by remember { mutableStateOf(false) }
+        var bpm by remember { mutableFloatStateOf(120f) }
         var timeL by remember { mutableFloatStateOf(300f) }
         var timeR by remember { mutableFloatStateOf(300f) }
         var feedback by remember { mutableFloatStateOf(0.5f) }
         var volume by remember { mutableFloatStateOf(0.5f) }
-        var lastTapTime by remember { mutableLongStateOf(0L) }
+        var pingPong by remember { mutableStateOf(false) }
 
-        fun upDelay() = VoiceEngine.setDelayParams(delayOn, timeL, timeR, feedback, volume)
+        fun upDelay() {
+            val finalTimeL = if (syncBpm) (60000f / bpm) else timeL
+            val finalTimeR = if (syncBpm) if (pingPong) (60000f / bpm) * 0.75f else (60000f / bpm) else timeR
+            VoiceEngine.setDelayParams(delayOn, finalTimeL, finalTimeR, feedback, volume, pingPong)
+        }
+
         StudioModuleCard("Pro Stereo Delay", delayOn, onToggle = { delayOn = it; upDelay() }) {
-            Button(onClick = {
-                val now = System.currentTimeMillis()
-                if (lastTapTime > 0 && (now - lastTapTime) < 2000) {
-                    val tappedTime = (now - lastTapTime).toFloat().coerceIn(10f, 1000f)
-                    timeL = tappedTime; timeR = tappedTime; upDelay()
+            // Kontrole za PingPong i BPM Sync
+            Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Switch(checked = pingPong, onCheckedChange = { pingPong = it; upDelay() }, modifier = Modifier.scale(0.8f))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Ping-Pong", color = Color.White, fontSize = 12.sp)
                 }
-                lastTapTime = now
-            }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = AccentCyan)) { Text("TAP TEMPO", color = Color.Black) }
-
-            Spacer(modifier = Modifier.height(16.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Switch(checked = syncBpm, onCheckedChange = { syncBpm = it; upDelay() }, modifier = Modifier.scale(0.8f))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("BPM Sync", color = Color.White, fontSize = 12.sp)
+                }
+            }
+            if (syncBpm) {
+                StudioSliderRow("Clock BPM", bpm, 60f, 200f) { bpm = it; upDelay() }
+            }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                StudioKnob("Time L", timeL, 10f, 1000f) { timeL = it; upDelay() }
-                StudioKnob("Time R", timeR, 10f, 1000f) { timeR = it; upDelay() }
+                if (!syncBpm) {
+                    StudioKnob("Time L", timeL, 10f, 1000f) { timeL = it; upDelay() }
+                    StudioKnob("Time R", timeR, 10f, 1000f) { timeR = it; upDelay() }
+                }
                 StudioKnob("F.Back", feedback, 0.0f, 0.95f) { feedback = it; upDelay() }
                 StudioKnob("Mix", volume, 0.0f, 1.0f) { volume = it; upDelay() }
             }
         }
 
-        // REVERB (Sa rotirajucim knobovima)
         var revOn by remember { mutableStateOf(false) }
         var rSize by remember { mutableFloatStateOf(0.7f) }
         var rDamp by remember { mutableFloatStateOf(0.5f) }
         var rMix by remember { mutableFloatStateOf(0.3f) }
         fun upRev() = VoiceEngine.setReverbParams(revOn, rSize, rDamp, rMix)
-        StudioModuleCard("Solaris Reverb", revOn, onToggle = { revOn = it; upRev() }) {
+        StudioModuleCard("Studio Reverb", revOn, onToggle = { revOn = it; upRev() }) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 StudioKnob("Size", rSize, 0.1f, 1.0f) { rSize = it; upRev() }
                 StudioKnob("Filter", rDamp, 0.0f, 1.0f) { rDamp = it; upRev() }
@@ -242,14 +339,13 @@ fun ModFxScreen() {
         Text("MODULATION", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = AccentCyan)
         Spacer(modifier = Modifier.height(16.dp))
 
-        // CHORUS (Sa rotirajucim knobovima)
         var choOn by remember { mutableStateOf(false) }
         var choDms by remember { mutableFloatStateOf(7.5f) }
         var choDep by remember { mutableFloatStateOf(6.5f) }
         var choFrq by remember { mutableFloatStateOf(1.5f) }
         var choMix by remember { mutableFloatStateOf(0.5f) }
         fun upCho() = VoiceEngine.setChorusParams(choOn, choDms, choDep, choFrq, choMix)
-        StudioModuleCard("Tracktion Chorus", choOn, onToggle = { choOn = it; upCho() }) {
+        StudioModuleCard("Studio Chorus", choOn, onToggle = { choOn = it; upCho() }) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 StudioKnob("Delay", choDms, 1.0f, 20.0f) { choDms = it; upCho() }
                 StudioKnob("Depth", choDep, 0.1f, 10.0f) { choDep = it; upCho() }
@@ -258,7 +354,6 @@ fun ModFxScreen() {
             }
         }
 
-        // FLANGER (Slajderi)
         var flaOn by remember { mutableStateOf(false) }
         var flaDms by remember { mutableFloatStateOf(5.0f) }
         var flaDep by remember { mutableFloatStateOf(100.0f) }
@@ -266,7 +361,7 @@ fun ModFxScreen() {
         var flaFb by remember { mutableFloatStateOf(0.75f) }
         var flaMix by remember { mutableFloatStateOf(0.5f) }
         fun upFla() = VoiceEngine.setFlangerParams(flaOn, flaDms, flaDep, flaFrq, flaFb, flaMix)
-        StudioModuleCard("Blue Cat Flanger", flaOn, onToggle = { flaOn = it; upFla() }) {
+        StudioModuleCard("Pro Flanger", flaOn, onToggle = { flaOn = it; upFla() }) {
             StudioSliderRow("Delay (ms)", flaDms, 1.0f, 10.0f) { flaDms = it; upFla() }
             StudioSliderRow("Depth %", flaDep, 10.0f, 100.0f) { flaDep = it; upFla() }
             StudioSliderRow("Rate Hz", flaFrq, 0.1f, 5.0f) { flaFrq = it; upFla() }
@@ -274,7 +369,6 @@ fun ModFxScreen() {
             StudioSliderRow("Mix", flaMix, 0.0f, 1.0f) { flaMix = it; upFla() }
         }
 
-        // PHASER (Slajderi)
         var phaOn by remember { mutableStateOf(false) }
         var phaRate by remember { mutableFloatStateOf(1.0f) }
         var phaDep by remember { mutableFloatStateOf(0.8f) }
@@ -286,7 +380,6 @@ fun ModFxScreen() {
             StudioSliderRow("Feedback", phaFb, 0.0f, 0.9f) { phaFb = it; upPha() }
         }
 
-        // AUTO FILTER (Slajderi)
         var afOn by remember { mutableStateOf(false) }
         var afCut by remember { mutableFloatStateOf(896.0f) }
         var afRes by remember { mutableFloatStateOf(50.0f) }
@@ -309,23 +402,27 @@ fun ToneFxScreen() {
         Text("TONE & DYNAMICS", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = AccentCyan)
         Spacer(modifier = Modifier.height(16.dp))
 
-        // COMPRESSOR (Sa rotirajucim knobovima)
         var cmpOn by remember { mutableStateOf(false) }
         var cThr by remember { mutableFloatStateOf(-30f) }
         var cRat by remember { mutableFloatStateOf(2f) }
         var cAtt by remember { mutableFloatStateOf(50f) }
         var cRel by remember { mutableFloatStateOf(500f) }
-        fun upCmp() = VoiceEngine.setCompParams(cmpOn, cThr, cRat, cAtt, cRel)
-        StudioModuleCard("Tracktion Compressor", cmpOn, onToggle = { cmpOn = it; upCmp() }) {
+        var cMake by remember { mutableFloatStateOf(0f) } // MAKEUP DODAT
+        fun upCmp() = VoiceEngine.setCompParams(cmpOn, cThr, cRat, cAtt, cRel, cMake)
+
+        StudioModuleCard("Pro Compressor", cmpOn, onToggle = { cmpOn = it; upCmp() }) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 StudioKnob("Thresh", cThr, -60f, 0f) { cThr = it; upCmp() }
                 StudioKnob("Ratio", cRat, 1f, 20f) { cRat = it; upCmp() }
                 StudioKnob("Attack", cAtt, 1f, 200f) { cAtt = it; upCmp() }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 StudioKnob("Release", cRel, 10f, 1000f) { cRel = it; upCmp() }
+                StudioKnob("Makeup", cMake, 0f, 24f) { cMake = it; upCmp() } // MAKEUP KNOB
             }
         }
 
-        // AMPLIFIER (Sa rotirajucim knobovima)
         var ampOn by remember { mutableStateOf(false) }
         var aDrv by remember { mutableFloatStateOf(5f) }
         var aTon by remember { mutableFloatStateOf(5000f) }
@@ -339,7 +436,6 @@ fun ToneFxScreen() {
             }
         }
 
-        // PITCH SHIFT (Slajderi)
         var pitOn by remember { mutableStateOf(false) }
         var semi by remember { mutableFloatStateOf(0f) }
         fun upPit() = VoiceEngine.setPitchParams(pitOn, semi)
@@ -347,7 +443,6 @@ fun ToneFxScreen() {
             StudioSliderRow("Semitones", semi, -12f, 12f) { semi = it; upPit() }
         }
 
-        // OCTAVE (Slajderi)
         var octOn by remember { mutableStateOf(false) }
         var octMix by remember { mutableFloatStateOf(0.5f) }
         var octSemi by remember { mutableFloatStateOf(-12f) }
@@ -357,7 +452,6 @@ fun ToneFxScreen() {
             StudioSliderRow("Shift", octSemi, -24f, 24f) { octSemi = it; upOct() }
         }
 
-        // AUTO TUNE (Slajderi)
         var tunOn by remember { mutableStateOf(false) }
         var tCorr by remember { mutableFloatStateOf(1f) }
         var tSpd by remember { mutableFloatStateOf(1f) }
@@ -367,7 +461,6 @@ fun ToneFxScreen() {
             StudioSliderRow("Speed", tSpd, 0.1f, 2.0f) { tSpd = it; upTun() }
         }
 
-        // VOCODER PROXY (Slajderi)
         var vocOn by remember { mutableStateOf(false) }
         var vocFreq by remember { mutableFloatStateOf(150f) }
         var vocMix by remember { mutableFloatStateOf(0.5f) }
@@ -377,7 +470,6 @@ fun ToneFxScreen() {
             StudioSliderRow("Mix", vocMix, 0f, 1f) { vocMix = it; upVoc() }
         }
 
-        // 5-BAND EQ (Slajderi kao na pravim miksetama)
         var eqOn by remember { mutableStateOf(false) }
         var lg by remember { mutableFloatStateOf(0f) }
         var lmg by remember { mutableFloatStateOf(0f) }
@@ -419,7 +511,7 @@ fun StudioKnob(
     ) {
         Canvas(
             modifier = Modifier
-                .size(55.dp) // Optimizovana velicina da stanu 4 komada u red
+                .size(55.dp)
                 .pointerInput(Unit) {
                     detectDragGestures { change, dragAmount ->
                         change.consume()
@@ -488,15 +580,22 @@ fun StudioSliderRow(label: String, value: Float, min: Float, max: Float, onValue
 }
 
 @Composable
-fun ExportScreen(wavFilePath: String) {
+fun ExportScreen(rawFilePath: String, masterFilePath: String) {
     val context = androidx.compose.ui.platform.LocalContext.current
     Column(modifier = Modifier.fillMaxSize().background(StudioBackground).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Icon(Icons.Default.Share, contentDescription = "Export", tint = AccentCyan, modifier = Modifier.size(80.dp))
         Spacer(modifier = Modifier.height(24.dp))
         Text("MASTERING & EXPORT", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
         Spacer(modifier = Modifier.height(48.dp))
-        Button(onClick = { if (context is MainActivity) context.shareWavFile() }, modifier = Modifier.fillMaxWidth().height(60.dp), shape = RoundedCornerShape(8.dp), colors = ButtonDefaults.buttonColors(containerColor = AccentCyan)) {
-            Text("SHARE BOUNCED WAV", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = StudioBackground)
+
+        Button(onClick = { if (context is MainActivity) context.shareFile(masterFilePath, "Share PROCESSED WAV") }, modifier = Modifier.fillMaxWidth().height(60.dp), shape = RoundedCornerShape(8.dp), colors = ButtonDefaults.buttonColors(containerColor = AccentCyan)) {
+            Text("SHARE PROCESSED WAV", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = StudioBackground)
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Button(onClick = { if (context is MainActivity) context.shareFile(rawFilePath, "Share RAW WAV") }, modifier = Modifier.fillMaxWidth().height(60.dp), shape = RoundedCornerShape(8.dp), colors = ButtonDefaults.buttonColors(containerColor = SurfaceDark)) {
+            Text("SHARE DRY (RAW) WAV", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.LightGray)
         }
     }
 }

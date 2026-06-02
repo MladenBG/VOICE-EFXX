@@ -20,11 +20,16 @@ public:
     bool start();
     void stop();
 
+    // RECORDING & PLAYBACK & OFFLINE BOUNCE
     void startRecording(const char* filePath);
     void stopRecording();
+    void startPlayback(const char* filePath);
+    void stopPlayback();
+    float getPlaybackPosition();
+    bool processWavFile(const char* inPath, const char* outPath);
 
-    // Time FX Parameters
-    void setDelayParams(bool enabled, float timeL, float timeR, float feedback, float mix);
+    // Time FX Parameters (Ping Pong added)
+    void setDelayParams(bool enabled, float timeL, float timeR, float feedback, float mix, bool pingPong);
     void setReverbParams(bool enabled, float size, float damping, float mix);
 
     // Modulation FX Parameters
@@ -33,8 +38,8 @@ public:
     void setPhaserParams(bool enabled, float rate, float depth, float feedback);
     void setAutoFilterParams(bool enabled, float cutoff, float res, float lfoRate, float lfoDepth);
 
-    // Tone FX Parameters
-    void setCompParams(bool enabled, float thresh, float ratio, float attack, float release);
+    // Tone FX Parameters (Makeup gain added)
+    void setCompParams(bool enabled, float thresh, float ratio, float attack, float release, float makeup);
     void setAmpParams(bool enabled, float drive, float tone, float output);
     void setEqBand(int bandIndex, float gainDb, float freqHz, float q);
     void setEqEnabled(bool enabled);
@@ -57,7 +62,7 @@ private:
     soundtouch::SoundTouch stOctave_;
 
     // --- TIME FX STATES ---
-    std::atomic<bool> delayEnabled_{false}, reverbEnabled_{false};
+    std::atomic<bool> delayEnabled_{false}, reverbEnabled_{false}, delayPingPong_{false};
     std::atomic<float> delayTimeL_{300.0f}, delayTimeR_{300.0f}, delayFeedback_{0.5f}, delayMix_{0.5f};
     std::atomic<float> reverbSize_{0.8f}, reverbDamping_{0.5f}, reverbMix_{0.3f};
 
@@ -70,7 +75,7 @@ private:
 
     // --- TONE FX STATES ---
     std::atomic<bool> compEnabled_{false}, ampEnabled_{false}, eqEnabled_{false};
-    std::atomic<float> compThresh_{-30.0f}, compRatio_{2.0f}, compAttack_{50.0f}, compRelease_{500.0f};
+    std::atomic<float> compThresh_{-30.0f}, compRatio_{2.0f}, compAttack_{50.0f}, compRelease_{500.0f}, compMakeup_{0.0f};
     std::atomic<float> ampDrive_{5.0f}, ampTone_{5000.0f}, ampOutput_{1.0f};
     std::atomic<bool> pitchEnabled_{false}, octaveEnabled_{false}, tuneEnabled_{false}, vocoderEnabled_{false};
     std::atomic<float> currentPitch_{0.0f}, octaveMix_{0.5f}, tuneCorrection_{1.0f}, vocoderFreq_{150.0f}, vocoderMix_{0.5f};
@@ -92,7 +97,13 @@ private:
     std::string currentWavPath_;
     uint32_t totalFramesWritten_ = 0;
 
+    // PLAYBACK & RENDER VARIABLES
+    std::atomic<bool> isPlaying_{false};
+    std::vector<float> playbackBuffer_;
+    std::atomic<size_t> playbackIndex_{0};
+
     void processAudio(float* inputBuffer, float* outputBuffer, int32_t numFrames);
+    void coreDSP(float* inputBuffer, float* outputBuffer, int32_t numFrames);
     void writeWavHeader();
     void updateWavHeader();
     void calculateBiquadCoeffs(BiquadState& state, float freq, float gainDb, float q, int type);

@@ -10,9 +10,27 @@ extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_stop
     if (audioEngine) { audioEngine->stop(); delete audioEngine; audioEngine = nullptr; }
 }
 
-// Tone FX JNI
-extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_setCompParams(JNIEnv *e, jobject t, jboolean en, jfloat thr, jfloat rat, jfloat att, jfloat rel) {
-    if (audioEngine) audioEngine->setCompParams(en, thr, rat, att, rel);
+// OFFLINE & PLAYBACK JNI
+extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_startPlayback(JNIEnv *e, jobject t, jstring p) {
+    if (!audioEngine) return; const char *f = e->GetStringUTFChars(p, 0); audioEngine->startPlayback(f); e->ReleaseStringUTFChars(p, f);
+}
+extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_stopPlayback(JNIEnv *e, jobject t) {
+    if (audioEngine) audioEngine->stopPlayback();
+}
+extern "C" JNIEXPORT jfloat JNICALL Java_com_magics_voice_changer_VoiceEngine_getPlaybackPosition(JNIEnv *e, jobject t) {
+    return audioEngine ? audioEngine->getPlaybackPosition() : 0.0f;
+}
+extern "C" JNIEXPORT jboolean JNICALL Java_com_magics_voice_changer_VoiceEngine_processWavFile(JNIEnv *e, jobject t, jstring in, jstring out) {
+    if (!audioEngine) return JNI_FALSE;
+    const char *inFile = e->GetStringUTFChars(in, 0); const char *outFile = e->GetStringUTFChars(out, 0);
+    bool res = audioEngine->processWavFile(inFile, outFile);
+    e->ReleaseStringUTFChars(in, inFile); e->ReleaseStringUTFChars(out, outFile);
+    return res ? JNI_TRUE : JNI_FALSE;
+}
+
+// Tone FX JNI (Dodat MAKEUP parametar ovde)
+extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_setCompParams(JNIEnv *e, jobject t, jboolean en, jfloat thr, jfloat rat, jfloat att, jfloat rel, jfloat mak) {
+    if (audioEngine) audioEngine->setCompParams(en, thr, rat, att, rel, mak);
 }
 extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_setAmpParams(JNIEnv *e, jobject t, jboolean en, jfloat d, jfloat tn, jfloat o) {
     if (audioEngine) audioEngine->setAmpParams(en, d, tn, o);
@@ -50,9 +68,9 @@ extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_setA
     if (audioEngine) audioEngine->setAutoFilterParams(en, c, res, lr, ld);
 }
 
-// Time FX JNI
-extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_setDelayParams(JNIEnv *e, jobject t, jboolean en, jfloat tl, jfloat tr, jfloat f, jfloat m) {
-    if (audioEngine) audioEngine->setDelayParams(en, tl, tr, f, m);
+// Time FX JNI (Dodat PING-PONG parametar ovde)
+extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_setDelayParams(JNIEnv *e, jobject t, jboolean en, jfloat tl, jfloat tr, jfloat f, jfloat m, jboolean pp) {
+    if (audioEngine) audioEngine->setDelayParams(en, tl, tr, f, m, pp);
 }
 extern "C" JNIEXPORT void JNICALL Java_com_magics_voice_changer_VoiceEngine_setReverbParams(JNIEnv *e, jobject t, jboolean en, jfloat s, jfloat d, jfloat m) {
     if (audioEngine) audioEngine->setReverbParams(en, s, d, m);
